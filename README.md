@@ -1,5 +1,5 @@
 # OTTeR
-Source Code for paper "Joint Table-Text Retrieval for Open-domain Question Answering".  We open-source a two stage OpenQA system, where it first retrieves relevant table-text blocks and then extract answers from the retrieved evidences.
+Source Code for our EMNLP-22 findings paper "Mixed-modality Representation Learning and Pre-training for Joint Table-and-Text Retrieval in OpenQA".  We open-source a two stage OpenQA system, where it first retrieves relevant table-text blocks and then extract answers from the retrieved evidences.
 
 ## Repository Structure
 
