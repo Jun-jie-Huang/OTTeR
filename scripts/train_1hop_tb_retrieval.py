@@ -1,94 +1,3 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the license found in the 
-# LICENSE file in the root directory of this source tree.
-"""
-# DPR baseline shared encoder
-
-CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python train_1hop_tb_retrieval.py \
-    --do_train \
-    --prefix nq_dpr_shared \
-    --predict_batch_size 5000 \
-    --model_name bert-base-uncased \
-    --train_batch_size 256 \
-    --gradient_accumulation_steps 1 \
-    --accumulate_gradients 1 \
-    --learning_rate 2e-5 \
-    --fp16 \
-    --train_file /private/home/xwhan/data/nq-dpr/nq-with-neg-train.txt \
-    --predict_file /private/home/xwhan/data/nq-dpr/nq-with-neg-dev.txt \
-    --seed 16 \
-    --eval-period -1 \
-    --max_c_len 300 \
-    --max_q_len 50 \
-    --warmup-ratio 0.1 \
-    --shared-encoder \
-    --num_train_epochs 50
-
-# WebQ single train
-CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python train_1hop_tb_retrieval.py \
-    --do_train \
-    --prefix wq_dpr_shared \
-    --predict_batch_size 5000 \
-    --model_name bert-base-uncased \
-    --train_batch_size 256 \
-    --gradient_accumulation_steps 1 \
-    --accumulate_gradients 1 \
-    --learning_rate 2e-5 \
-    --fp16 \
-    --train_file /private/home/xwhan/data/WebQ/wq-train-simplified.txt \
-    --predict_file /private/home/xwhan/data/WebQ/wq-dev-simplified.txt \
-    --seed 16 \
-    --eval-period -1 \
-    --max_c_len 300 \
-    --max_q_len 50 \
-    --warmup-ratio 0.1 \
-    --shared-encoder \
-    --num_train_epochs 50
-
-# FEVER single-hop retrieval
-CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python train_1hop_tb_retrieval.py \
-    --do_train \
-    --prefix fever_single \
-    --predict_batch_size 5000 \
-    --model_name bert-base-uncased \
-    --train_batch_size 256 \
-    --gradient_accumulation_steps 1 \
-    --accumulate_gradients 1 \
-    --learning_rate 2e-5 \
-    --fp16 \
-    --train_file /private/home/xwhan/data/fever/retrieval/train_tfidf_neg.txt \
-    --predict_file /private/home/xwhan/data/fever/retrieval/dev_tfidf_neg.txt \
-    --seed 16 \
-    --eval-period -1 \
-    --max_c_len 400 \
-    --max_q_len 45 \
-    --shared-encoder \
-    --num_train_epochs 40
-
-# HotpotQA single-hop
-CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python train_1hop_tb_retrieval.py \
-    --do_train \
-    --prefix hotpot_single \
-    --predict_batch_size 5000 \
-    --model_name roberta-base \
-    --train_batch_size 256 \
-    --gradient_accumulation_steps 1 \
-    --accumulate_gradients 1 \
-    --learning_rate 2e-5 \
-    --fp16 \
-    --train_file /private/home/xwhan/data/hotpot/hotpot_train_with_neg_v0.json \
-    --predict_file /private/home/xwhan/data/hotpot/hotpot_val_with_neg_v0.json \
-    --seed 16 \
-    --eval-period -1 \
-    --max_c_len 300 \
-    --max_q_len 70 \
-    --shared-encoder \
-    --warmup-ratio 0.1 \
-    --num_train_epochs 50
-    
-"""
 import logging
 import os
 import sys
@@ -107,7 +16,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 sys.path.append('../')
 
-from transformers import AdamW, get_linear_schedule_with_warmup, TapasTokenizer
+from transformers import AdamW, get_linear_schedule_with_warmup
 from transformers import (AutoConfig, AutoModel, AutoTokenizer,
                           BertConfig, BertModel, BertTokenizer,
                           XLNetConfig, XLNetModel, XLNetTokenizer,
@@ -117,15 +26,12 @@ from transformers import (AutoConfig, AutoModel, AutoTokenizer,
                           LongformerConfig, LongformerModel, LongformerTokenizer)
 
 from torch.utils.tensorboard import SummaryWriter
-# from retrieval.data.sp_datasets import SPDataset,OTTDataset, sp_collate, NQMhopDataset, FeverSingleDataset
-from retrieval.data.tr_dataset import TRDatasetNega, TRDatasetNegaMeta, tb_collate, tb_collate_tapas
+from retrieval.data.tr_dataset import TRDatasetNega, TRDatasetNegaMeta, tb_collate
 from retrieval.data.tr_dataset import TRDatasetNegaMetaThreeCat
 from retrieval.utils.utils import move_to_cuda, AverageMeter, load_saved
 from retrieval.config import train_args
 from retrieval.criterions import loss_single
-# from retrieval.models.retriever import BertRetrieverSingle, RobertaRetrieverSingle, MomentumRetriever
-from retrieval.models.retriever import TAPASRetrieverPure
-from retrieval.models.retriever import SingleRetriever, RobertaSingleRetriever, MomentumRetriever, RobertaMomentumRetriever
+from retrieval.models.retriever import SingleRetriever, RobertaSingleRetriever
 from retrieval.models.tb_retriever import SingleRetrieverThreeCatPool, RobertaSingleRetrieverThreeCatPool
 from retrieval.models.tb_retriever import SingleRetrieverThreeCatAtt, RobertaSingleRetrieverThreeCatAtt
 
@@ -148,8 +54,7 @@ def main():
     # date_curr = date.today().strftime("%m-%d-%Y")
     # model_name = f"addmeta-{args.prefix}-seed{args.seed}-bsz{args.train_batch_size}-fp16{args.fp16}-lr{args.learning_rate}-decay{args.weight_decay}-warm{args.warmup_ratio}-{args.model_name}"
     model_name = f"{args.prefix}-seed{args.seed}-bsz{args.train_batch_size}-fp16{args.fp16}-lr{args.learning_rate}-decay{args.weight_decay}-warm{args.warmup_ratio}-{args.model_name}"
-    model_name += f"-k{args.k}" if args.momentum else ""
-    # args.output_dir = os.path.join(args.output_dir, model_name)
+    # model_name += f"-k{args.k}" if args.momentum else ""
     tb_logger = SummaryWriter(os.path.join(args.output_dir.replace("logs", "tflogs")))
 
     if os.path.exists(args.output_dir) and os.listdir(args.output_dir):
@@ -188,19 +93,7 @@ def main():
     bert_config = AutoConfig.from_pretrained(args.model_name)
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
     collate_fc = partial(tb_collate, pad_id=tokenizer.pad_token_id)
-    if args.momentum and "roberta" not in args.model_name and "longformer" not in args.model_name:
-        if args.three_cat:
-            raise Exception("bert momentum dont have ThreeCat retriever setting...")
-        else:
-            model = MomentumRetriever(bert_config, args)
-            logger.info("Model Using MomentumRetriever...")
-    elif args.momentum and ("roberta" in args.model_name or "longformer" in args.model_name):
-        if args.three_cat:
-            raise Exception("roberta momentum dont have ThreeCat retriever setting...")
-        else:
-            model = RobertaMomentumRetriever(bert_config, args)
-            logger.info("Model Using RobertaMomentumRetriever...")
-    elif "roberta" in args.model_name or "longformer" in args.model_name:
+    if "roberta" in args.model_name or "longformer" in args.model_name:
         if args.three_cat:
             if args.part_pooling[:3] == 'att':
                 model = RobertaSingleRetrieverThreeCatAtt(bert_config, args)
@@ -211,14 +104,6 @@ def main():
         else:
             model = RobertaSingleRetriever(bert_config, args)
             logger.info("Model Using RobertaSingleRetriever...")
-    elif "tapas" in args.model_name:
-        if args.three_cat:
-            raise Exception ("tapas dont have ThreeCat retriever setting...")
-        else:
-            tokenizer = TapasTokenizer.from_pretrained(args.model_name, cell_trim_length=args.cell_trim_length)
-            collate_fc = partial(tb_collate_tapas, pad_id=tokenizer.pad_token_id)
-            model = TAPASRetrieverPure(bert_config, args)
-            logger.info("Model Using TAPASRetrieverPure...")
     else:
         if args.three_cat:
             if args.part_pooling[:3] == 'att':
@@ -242,7 +127,7 @@ def main():
             "was only trained up to sequence length %d" %
             (args.max_c_len, bert_config.max_position_embeddings))
 
-    ################## EVAL DATASET SELECTION, Try TRAIN!!!####################################
+    ################## EVAL DATASET SELECTION####################################
     if args.metadata:
         if args.three_cat:
             eval_dataset = TRDatasetNegaMetaThreeCat(tokenizer, args.predict_file, args)
@@ -339,7 +224,7 @@ def main():
                 batch = move_to_cuda(batch)
                 model.train()
 
-                loss = loss_single(model, batch, args.momentum)
+                loss = loss_single(model, batch)
 
                 if n_gpu > 1:
                     loss = loss.mean()  # mean() to average on multi-gpu parallel training

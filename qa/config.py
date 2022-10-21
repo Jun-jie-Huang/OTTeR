@@ -21,7 +21,7 @@ class ClusterConfig(NamedTuple):
 def qa_args():
     parser = argparse.ArgumentParser()
     # Required parameters
-    parser.add_argument("--model_type", default='bert', type=str)
+    parser.add_argument("--model_type", default='longformer', type=str)
     parser.add_argument("--model_name_or_path", default="bert-base-uncased", type=str, help="Path to pre-trained model or shortcut name selected in the list: ")
     parser.add_argument("--output_dir", default='qa_model', type=str, help="The output directory where the model checkpoints and predictions will be written.",)
     parser.add_argument(
@@ -85,14 +85,14 @@ def qa_args():
     )
     parser.add_argument(
             "--max_seq_length",
-            default=384,
+            default=4096,
             type=int,
             help="The maximum total input sequence length after WordPiece tokenization. Sequences "
                  "longer than this will be truncated, and sequences shorter than this will be padded.",
     )
     parser.add_argument(
             "--doc_stride",
-            default=128,
+            default=1024,
             type=int,
             help="When splitting up a long document into chunks, how much stride to take between chunks.",
     )
@@ -105,7 +105,7 @@ def qa_args():
     )
     parser.add_argument(
             "--num_tokenizer_vocab",
-            default=50271,
+            default=50272,
             type=int,
     )
     parser.add_argument("--do_train", action="store_true", help="Whether to run training.")
@@ -118,21 +118,21 @@ def qa_args():
     parser.add_argument("--dont_save_cache", action="store_false", help="Overwrite the cached training and evaluation sets")
     parser.add_argument("--qa_topk_concat", type=int, default=0, help="number of table blocks used for qa evaluation, if 0 then dont concat")
     parser.add_argument("--metadata", action="store_true", help="whether to add meta data, True(use) if call")
-    parser.add_argument("--add_special_tokens", action="store_true", help="whether to add special tokens")
-    parser.add_argument("--topk_tbs", type=int, default=10, help="multiple threads for converting example to features")
+    parser.add_argument("--add_special_tokens", action="store_true", defalult=True, help="whether to add special tokens")
+    parser.add_argument("--topk_tbs", type=int, default=24, help="multiple threads for converting example to features")
     parser.add_argument("--prefix", type=str, default='', help="prefix for saving cached file")
     parser.add_argument("--predict_output_file", type=str, default='', help="file to save predictions")
     parser.add_argument("--pred_model_dir", type=str, default='', help="file to save predictions")
 
     parser.add_argument("--do_lower_case", action="store_true", help="Set this flag if you are using an uncased model.")
-    parser.add_argument("--per_gpu_train_batch_size", default=8, type=int, help="Batch size per GPU/CPU for training.")
+    parser.add_argument("--per_gpu_train_batch_size", default=2, type=int, help="Batch size per GPU/CPU for training.")
     parser.add_argument("--per_gpu_eval_batch_size", default=8, type=int, help="Batch size per GPU/CPU for evaluation.")
-    parser.add_argument("--learning_rate", default=5e-5, type=float, help="The initial learning rate for Adam.")
+    parser.add_argument("--learning_rate", default=1e-5, type=float, help="The initial learning rate for Adam.")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1, help="Number of updates steps to accumulate before performing a backward/update pass.",)
     parser.add_argument("--weight_decay", default=0.0, type=float, help="Weight decay if we apply some.")
     parser.add_argument("--adam_epsilon", default=1e-8, type=float, help="Epsilon for Adam optimizer.")
     parser.add_argument("--max_grad_norm", default=1.0, type=float, help="Max gradient norm.")
-    parser.add_argument("--num_train_epochs", default=3.0, type=float, help="Total number of training epochs to perform.")
+    parser.add_argument("--num_train_epochs", default=4, type=float, help="Total number of training epochs to perform.")
     parser.add_argument("--warmup_steps", default=0, type=int, help="Linear warmup over warmup_steps.")
     parser.add_argument("--n_best_size", default=20, type=int, help="The total number of n-best predictions to generate in the nbest_predictions.json output file.")
     parser.add_argument("--max_answer_length", default=30, type=int, help="The maximum length of an answer that can be generated. This is needed because the start and end predictions are not conditioned on one another.")

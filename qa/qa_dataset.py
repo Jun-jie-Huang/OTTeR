@@ -1,9 +1,3 @@
-# -*- coding: utf-8 -*-
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the license found in the 
-# LICENSE file in the root directory of this source tree.
 import collections
 import json
 import random
@@ -347,161 +341,6 @@ def get_test_data(args, tokenizer):
 
 
 
-# def prepare_qa_data_tbconcat_eval(data, topk_tbs=15,max_context_length=400):
-#     '''
-#         tokenizer-free, 后面要改输入输出就改这里就行了
-#         OverLoading...
-#     Input file format
-#     [{
-#         'question_id': str
-#         'question': str
-#         'answer-text': answer-text  ???test
-#         'answer-nodes': []
-#         'top_{}".format(args.beam_size)': [{}]
-#
-#         # 'positive_table_blocks‘: {'table_id','row_id','table_segment':,'passages':[passage text]}
-#         # 'passages': [{'index':str , 'position':[row_id,col_id], 'passage':str}]
-#         # 'table': table
-#      }, {}]
-#
-#     Output data format
-#     [{
-#         'context': str,
-#         'title': str,
-#         'question': str,
-#         'question_id': str,
-#
-#         'answers': [{ 'answer_start': int,
-#                       'text': int
-#                       }]
-#      }, {}]
-#     '''
-#
-#     TOPN = [item for item in list(data[0].keys()) if 'top_' in item][0]
-#     split = []
-#
-#     for d in tqdm(data, desc='   Preparing QA data, add meta'):
-#         all_context = []
-#         for block in d[TOPN]:
-#             header = block['table'][0]
-#             table = block['table'][1]
-#             table_segment = pd.DataFrame(data=table, columns=header)
-#
-#             passage = random.choice(block['passages']) if block['passages'] else ''
-#             # passage = ' '.join(block['passages'])
-#             context = convert_tb_to_string_metadata(table_segment, [passage],block['meta_data'], cut='passage')
-#             title = block['table_id']
-#             all_context.append({'context': context, 'title': title})
-#             # all_question_ids[d['question_id']] += 1
-#             # question_id = d['question_id'] + '-{}'.format(all_question_ids[d['question_id']])
-#             #
-#             # answer = d.get('answer-text', '[HEADER]')
-#             # gold_title = d.get('table_id', '[NONE]')
-#             # title = block['table_id']
-#             # # split.append({'context': context, 'title': d['table_id'],
-#             # split.append({'context': context, 'title': title, 'gold_title': gold_title,
-#             #               'question': d['question'], 'question_id': question_id,
-#             #               'answers': [{'answer_start': 0, 'text': answer}], })
-#         question_id = d['question_id']
-#         answer = d.get('answer-text', '[HEADER]')
-#         gold_title = d.get('table_id', '[NONE]')
-#         selected_context = all_context[:topk_tbs]
-#         random.shuffle(selected_context)
-#         context_str = ' [TB] '.join([c['context'] for c in selected_context])
-#
-#         split.append({'context': context_str, 'titles': [c['title'] for c in selected_context],
-#                       'title': gold_title,
-#                       'question': d['question'], 'question_id': question_id,
-#                       'answers': [{'answer_start': 0, 'text': answer}], })
-#         if idx<2:
-#             logger.info(split[-1])
-#     return split
-
-
-# def prepare_qa_data_tbconcat(data, retrieval_outputs,topk_tbs = 15):
-#     split = []
-#     assert len(data) == len(retrieval_outputs),'length of data {}, length of retrieval outputs {}'.format(len(data),len(retrieval_outputs))
-#     TOPN = [item for item in list(retrieval_outputs[0].keys()) if 'top_' in item][0]
-#
-#     hit = set()
-#     for idx,d in tqdm(enumerate(data), desc='Preprocessing data'):
-#         positive_table_block = d['positive_table_blocks']
-#         positive_passages = d['passages']
-#         orig_answer = d['answer-text']
-#         answer_node = d['answer-node']
-#         table = [[cell[0] for cell in row] for row in d['table']['data']]
-#         header = [hea[0] for hea in d['table']['header']]
-#         ground_truth_context = []
-#         gt_tb_ids = {}
-#
-#         gt_meta_data = d['table_metadata']
-#         if d['where'] == 'table':
-#             for block in positive_table_block:
-#                 table_segment = pd.DataFrame(data=[table[block['row_id']]], columns=header)
-#                 # table_segment = pd.DataFrame.from_dict(block['table_segment'])
-#                 # passage = random.choice(block['passages']) if block['passages'] else ''
-#                 context = convert_tb_to_string_metadata(table_segment, block['passages'], gt_meta_data,cut='passage')
-#                 gt_tb_ids['{}-{}'.format(block['table_id'],block['row_id'])] = context
-#                 ground_truth_context.append(context)
-#
-#         else:
-#             for passage in positive_passages:
-#                 block = [tb for tb in positive_table_block if int(tb['row_id']) == int(passage['position'][0])][0]
-#                 table_segment = pd.DataFrame.from_dict(block['table_segment'])
-#                 passage = passage['passage']
-#                 # meta = block['meta_data']
-#                 context = convert_tb_to_string_metadata(table_segment, [passage], gt_meta_data, cut='table')
-#                 gt_tb_ids['{}-{}'.format(block['table_id'],block['row_id'])] = context
-#                 ground_truth_context.append(context)
-# #         logger.info(ground_truth_context)
-# #         logger.info(searched_context)
-# #         input()
-#         # find context based on retrieval outputs
-#         searched_tbs = retrieval_outputs[idx]
-#         assert searched_tbs['question_id'] == d['question_id']
-#         searched_context = []
-#
-#         for block in searched_tbs[TOPN][:topk_tbs]:
-#             tb_id = '{}-{}'.format(block['table_id'], block['row_id'])
-#             if tb_id in gt_tb_ids.keys():
-#                 hit.add(d['question_id'])
-#                 searched_context.append(gt_tb_ids[tb_id])
-#                 continue
-#             header = block['table'][0]
-#             table = block['table'][1]
-#             table_segment = pd.DataFrame(data=table, columns=header)
-#             # passage = random.choice(block['passages']) if block['passages'] else ''
-#             context = convert_tb_to_string_metadata(table_segment, block['passages'],block['meta_data'], cut='passage')
-#             searched_context.append(context)
-#         # generate ground truth context
-#         # all_context = ground_truth_context[:1] + searched_context
-#         all_context = searched_context
-#         all_context = all_context#[:topk_tbs]
-#         #whether to shuffle the context to avoid bias
-#         random.shuffle(all_context)
-#
-#         input_context_str = ' [TB] '.join(all_context)
-# #         all_start_pos = [orig_answer.start() for orig_answer in re.finditer(orig_answer.lower(), context_str.lower())]
-#         context_str = ' [TB] '.join(ground_truth_context)
-#         start = context_str.lower().find(orig_answer.lower())
-#         #randomly select a answer if there exists multiple
-# #         start = random.choice(all_start_pos)
-#         if start == -1:
-#             import pdb
-#             pdb.set_trace()
-#             while context_str[start].lower() != orig_answer[0].lower():
-#                 start -= 1
-#         answer = context_str[start:start + len(orig_answer)]
-#
-#         # answer = orig_answer
-#         split.append({'context': input_context_str, 'title': d['table_id'],
-#                       'question': d['question'], 'question_id': d['question_id'],
-#                       'answers': [{'answer_start': 0, 'text': answer}]})
-#         if idx<2:
-#             logger.info(split[-1])
-#     logger.info('{}/{} examples are hitted'.format(len(hit),len(data)))
-#     return split
-
 from preprocessing.utils_preprocess import rank_doc_tfidf
 def prepare_qa_data_tbconcat(data, topk_tbs = 15):
     split = []
@@ -519,19 +358,6 @@ def prepare_qa_data_tbconcat(data, topk_tbs = 15):
         ground_truth_context = []
         gt_tb_ids = {}
 
-        # if d['where'] == 'table':
-        #     for block in positive_table_block:
-        #         context = block['context']
-        #         gt_tb_ids['{}-{}'.format(block['table_id'], block['row_id'])] = context
-        #         ground_truth_context.append(context)
-        # else:
-        #     for passage in positive_passages:
-        #         block = [tb for tb in positive_table_block if int(tb['row_id']) == int(passage['position'][0])][0] # TODO 目前还只取了0号block
-        #         table_segment = pd.DataFrame.from_dict(block['table_segment'])
-        #         passage = passage['passage']
-        #         # context = convert_tb_to_string_metadata(table_segment, [passage], block['meta_data'], cut='table')
-        #         context = convert_tb_to_string(table_segment, [passage],  cut='table')
-        #         ground_truth_context.append(context)
         for block in positive_table_block:
             context = block['context']
             gt_tb_ids['{}-{}'.format(block['table_id'],block['row_id'])] = context
@@ -542,11 +368,8 @@ def prepare_qa_data_tbconcat(data, topk_tbs = 15):
                 hit.add(d['question_id'])
                 continue
             searched_context.append(block['context'])
-#         print(ground_truth_context)
-#         print(searched_context)
-#         input()
-        # find context based on retrieval outputs
 
+        # find context based on retrieval outputs
         all_context = ground_truth_context + searched_context
         # all_context = searched_context
         all_context = all_context[:topk_tbs]
@@ -556,11 +379,11 @@ def prepare_qa_data_tbconcat(data, topk_tbs = 15):
         # input_context_str = ' [TB] '.join(all_context)
         # ranked_context = [doc['passage'] for doc in rank_doc_tfidf(d['question'], all_context)]
         input_context_str = ' [TB] '.join(ranked_context)
-#         all_start_pos = [orig_answer.start() for orig_answer in re.finditer(orig_answer.lower(), context_str.lower())]
-#         context_str = ' [TB] '.join()
+        # all_start_pos = [orig_answer.start() for orig_answer in re.finditer(orig_answer.lower(), context_str.lower())]
+        # context_str = ' [TB] '.join()
         start = input_context_str.lower().find(orig_answer.lower())
-        #randomly select a answer if there exists multiple
-#         start = random.choice(all_start_pos)
+        # randomly select a answer if there exists multiple
+        # start = random.choice(all_start_pos)
         if start == -1:
             import pdb
             pdb.set_trace()
@@ -705,7 +528,6 @@ def prepare_qa_data_tbconcat_test(data, topk_tbs=15):
 
 def prepare_qa_data(data, max_context_length=400):
     '''
-        tokenizer-free, 后面要改输入输出就改这里就行了
 
     Input file format
     [{
@@ -779,67 +601,6 @@ def prepare_qa_data(data, max_context_length=400):
                 split.append({'context': context, 'title': d['table_id'],
                               'question': d['question'], 'question_id': question_id,
                               'answers': [{'answer_start': start, 'text': answer}]})
-        # if d['where'] == 'passage':
-        #     table_id = d['table_id']
-        #     with open(f'{resource_path}/{request_path}/{table_id}.json') as f:
-        #         requested_documents = json.load(f)
-        #         # tmp = mapping.get(str(table_id), [])
-        #     used = set()
-        #     for node in d['answer-node']:
-        #         if node[2] not in used:
-        #             context = requested_documents[node[2]]
-        #             context = 'Title : {} . '.format(node[0]) + context
-        #             context = get_table_block(node,requested_documents)
-        #             orig_answer = d['answer-text']
-        #             start = context.lower().find(orig_answer.lower())
-        #
-        #             if start == -1:
-        #                 import pdb
-        #                 pdb.set_trace()
-        #
-        #             while context[start].lower() != orig_answer[0].lower():
-        #                 start -= 1
-        #
-        #             answer = context[start:start + len(orig_answer)]
-        #             # assert(answer.lower() == orig_answer.lower(), "{} -> {}".format(answer, orig_answer))
-        #
-        #             split.append({'context': context, 'title': table_id,
-        #                           'question': d['question'], 'question_id': d['question_id'],
-        #                           'answers': [{'answer_start': start, 'text': answer}]})
-        #             used.add(node[2])
-        #         else:
-        #             continue
-        #
-        # if d['where'] == 'table':
-        #     table_id = d['table_id']
-        #
-        #     with open(f'{resource_path}/{request_path}/{table_id}.json') as f:
-        #         requested_documents = json.load(f)
-        #
-        #     used = set()
-        #     for node in d['answer-node']:
-        #         if node[2] and node[2] not in used:
-        #             context = requested_documents[node[2]]
-        #             context = 'Title : {} . '.format(node[0]) + context
-        #             context = get_table_block(node, requested_documents)
-        #             orig_answer = node[0]
-        #
-        #             start = context.lower().find(orig_answer.lower())
-        #
-        #             if start == -1:
-        #                 import pdb
-        #                 pdb.set_trace()
-        #
-        #             while context[start].lower() != orig_answer[0].lower():
-        #                 start -= 1
-        #
-        #             answer = context[start:start + len(orig_answer)]
-        #             split.append({'context': context, 'title': table_id,
-        #                           'question': d['question'], 'question_id': d['question_id'],
-        #                           'answers': [{'answer_start': start, 'text': answer}]})
-        #             used.add(node[2])
-        #         else:
-        #             continue
 
     return split
 
@@ -859,8 +620,6 @@ def _improve_answer_span(doc_tokens, input_start, input_end, tokenizer, orig_ans
 
 def _new_check_is_max_context(doc_spans, cur_span_index, position):
     """Check if this is the 'max context' doc span for the token."""
-    # if len(doc_spans) == 1:
-    # return True
     best_score = None
     best_span_index = None
     for (span_index, doc_span) in enumerate(doc_spans):
@@ -894,10 +653,6 @@ def load_and_cache_examples(args, tokenizer, evaluate=False, output_examples=Fal
             args.prefix
         ),
     )
-    # if args.topk_tbs > 0:
-    #     cached_features_file += "_concat"
-    # if args.metadata > 0:
-    #     cached_features_file += "_meta"
 
     # Init features and dataset from cache if it exists
     if os.path.exists(cached_features_file) and not args.overwrite_cache:
@@ -911,9 +666,6 @@ def load_and_cache_examples(args, tokenizer, evaluate=False, output_examples=Fal
     else:
         logger.info("Creating features from dataset file at %s to %s", input_dir, cached_features_file)
 
-        # if args.topk_tbs == 0:
-        #     processor = OTTQAProcessor(args)
-        # else:
         processor = OTTQAProcessorConcat(args)
         logger.info("using the processor: {}".format(processor.__class__.__name__))
         if evaluate:

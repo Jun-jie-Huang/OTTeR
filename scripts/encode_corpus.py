@@ -1,27 +1,3 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the license found in the 
-# LICENSE file in the root directory of this source tree.
-
-"""
-Description: encode text corpus into a store of dense vectors. 
-
-Usage (adjust the batch size according to your GPU memory):
-
-CUDA_VISIBLE_DEVICES=0,1,2,3 python scripts/encode_corpus.py \
-    --do_predict \
-    --predict_batch_size 1000 \
-    --model_name roberta-base \
-    --predict_file ${CORPUS_PATH} \
-    --init_checkpoint ${MODEL_CHECKPOINT} \
-    --embed_save_path ${SAVE_PATH} \
-    --fp16 \
-    --max_c_len 300 \
-    --num_workers 20 
-
-"""
-
 import sys
 sys.path.append('../')
 import collections
@@ -32,15 +8,14 @@ import random
 from tqdm import tqdm
 import numpy as np
 import torch
-from transformers import AutoConfig, AutoTokenizer, TapasTokenizer
+from transformers import AutoConfig, AutoTokenizer
 from torch.utils.data import DataLoader
 from functools import partial
 
-# from retrieval.data.encode_datasets import EmDatasetTapas, EmDatasetBert, em_collate_q, em_collate_tb
-from retrieval.data.encode_datasets import EmDataset, em_collate_bert, em_collate_tapas
-from retrieval.models.retriever import TapasEncoder, TapasEncoderPure, CtxEncoder, RobertaCtxEncoder
+from retrieval.data.encode_datasets import EmDataset, em_collate_bert
+from retrieval.models.retriever import CtxEncoder, RobertaCtxEncoder
 from retrieval.data.encode_datasets import EmDataset, EmDatasetFilter, EmDatasetMeta, EmDatasetMetaThreeCat
-from retrieval.models.retriever import TapasEncoder, SingleRetriever, SingleEncoder, RobertaSingleEncoder, MomentumEncoder
+from retrieval.models.retriever import SingleRetriever, SingleEncoder, RobertaSingleEncoder
 from retrieval.models.tb_retriever import SingleEncoderThreeCatPool, RobertaSingleEncoderThreeCatPool
 from retrieval.models.tb_retriever import SingleEncoderThreeCatAtt, RobertaSingleEncoderThreeCatAtt
 from retrieval.config import encode_args
@@ -70,10 +45,7 @@ def main():
     bert_config = AutoConfig.from_pretrained(args.model_name)
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
     collate_fc = partial(em_collate_bert, pad_id=tokenizer.pad_token_id)
-    if args.momentum:
-        model = MomentumEncoder(bert_config, args)
-        logger.info("Model Using MomentumEncoder...")
-    elif "roberta" in args.model_name:
+    if "roberta" in args.model_name:
         if args.three_cat:
             if args.part_pooling[:3] == 'att':
                 model = RobertaSingleEncoderThreeCatAtt(bert_config, args)
@@ -84,11 +56,6 @@ def main():
         else:
             model = RobertaSingleEncoder(bert_config, args)
             logger.info("Model Using RobertaSingleEncoder...")
-    elif "tapas" in args.model_name:
-        tokenizer = TapasTokenizer.from_pretrained(args.model_name, cell_trim_length=args.cell_trim_length)
-        collate_fc = partial(em_collate_tapas, pad_id=tokenizer.pad_token_id)
-        model = TapasEncoderPure(bert_config, args)
-        logger.info("Model Using TapasEncoderPure...")
     else:
         if args.three_cat:
             if args.part_pooling[:3] == 'att':

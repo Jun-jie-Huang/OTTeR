@@ -236,18 +236,6 @@ class EmDatasetMetaThreeCat(EmDataset):
     def get_item_tapas(self, index):
         raise Exception("not implement three cat in emdataset")
 
-        # js = self.data[index]
-        # if self.table:
-        #     psg = get_passages(js, self.args.psg_mode, neg=False)[:8]
-        #     table_block_tensor = convert_tb_to_features_tapas_metadata(psg, js['table'], js['meta_data'], tokenizer=self.tokenizer, args=self.args)
-        # else:
-        #     question = js['question']
-        #     if question.endswith("?"):
-        #         question = question[:-1]
-        #     table_block_tensor = convert_tb_to_features_tapas_metadata(question, pd.DataFrame([]), js['meta_data'], tokenizer=self.tokenizer, args=self.args)
-        # return {
-        #         "tb": table_block_tensor,
-        #         }
 
     def get_item_bert(self, index):
         js = self.data[index]
@@ -266,48 +254,6 @@ class EmDatasetMetaThreeCat(EmDataset):
         return {
                 "tb": table_block_tensor,
                 }
-
-
-#
-#
-# class EmDatasetTapas(EmDataset):
-#
-#     def __init__(self, tokenizer, data_path, table, args):
-#         super(EmDatasetTapas, self).__init__(tokenizer, data_path, table, args)
-#
-#     def __getitem__(self, index):
-#         js = self.data[index]
-#
-#         if self.table:
-#             table_block_tensor = convert_tb_to_features_tapas(' '.join(js['passages']), js['table'], tokenizer=self.tokenizer, args=self.args)
-#         else:
-#             question = js['question']
-#             if question.endswith("?"):
-#                 question = question[:-1]
-#             table_block_tensor = convert_tb_to_features_tapas(question, pd.DataFrame([]), tokenizer=self.tokenizer, args=self.args)
-#         return {
-#                 "tb": table_block_tensor,
-#                 }
-#
-#
-# class EmDatasetBert(EmDataset):
-#
-#     def __init__(self, tokenizer, data_path, table, args):
-#         super(EmDatasetBert, self).__init__(tokenizer, data_path, table, args)
-#
-#     def __getitem__(self, index):
-#         js = self.data[index]
-#
-#         if self.table:
-#             table_block_tensor = convert_tb_to_features_bert(' '.join(js['passages']), js['table'], tokenizer=self.tokenizer, args=self.args)
-#         else:
-#             question = js['question']
-#             if question.endswith("?"):
-#                 question = question[:-1]
-#             table_block_tensor = convert_tb_to_features_bert(question, pd.DataFrame([]), tokenizer=self.tokenizer, args=self.args)
-#         return {
-#                 "tb": table_block_tensor,
-#                 }
 
 
 class EmDatasetFilter(EmDataset):
@@ -471,17 +417,3 @@ def em_collate_bert(samples, pad_id=0):
     return batch
 
 
-
-# def em_collate(samples):
-#     if len(samples) == 0:
-#         return {}
-#
-#     batch = {
-#         'input_ids': collate_tokens([s['input_ids'].view(-1) for s in samples], 0),
-#         'input_mask': collate_tokens([s['attention_mask'].view(-1) for s in samples], 0),
-#     }
-#
-#     if "token_type_ids" in samples[0]:
-#         batch["input_type_ids"] = collate_tokens([s['token_type_ids'].view(-1) for s in samples], 0)
-#
-#     return batch

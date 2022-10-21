@@ -63,19 +63,17 @@ def common_args():
     # multi vector scheme
     parser.add_argument("--multi_vector", type=int, default=1)
     parser.add_argument("--scheme", type=str, help="how to get the multivector, layerwise or tokenwise", default="none")
-    parser.add_argument("--no_proj", action="store_true")
-    parser.add_argument("--shared_encoder", action="store_true")
-    parser.add_argument("--normalize_table", action="store_true")
-    parser.add_argument("--metadata", action="store_true", help="whether to add meta data, True(use) if call")
+    parser.add_argument("--metadata", action="store_true", default=True, help="whether to add meta data, True(use) if call")
     parser.add_argument("--add_special_tokens", action="store_true", help="whether to add special tokens, True(use) if call")
-    parser.add_argument("--three_cat", action="store_true", help="whether concat three vectors as representation, True(use) if call")
-    parser.add_argument('--part_pooling', type=str, default='cls', help="pooling method for part 2 and part 3",
+    parser.add_argument("--no_proj", action="store_true", default=True)
+    parser.add_argument("--shared_encoder", action="store_true")
+    parser.add_argument("--normalize_table", action="store_true", default=True)
+    parser.add_argument("--three_cat", action="store_true", default=True, help="whether concat three vectors as representation, True(use) if call")
+    parser.add_argument('--part_pooling', type=str, default='first', help="pooling method for part 2 and part 3",
                         choices=['cls', 'mean', 'max', 'first',
                                  'att_self_pool', 'att_self_multihead'
                                  ])
-    parser.add_argument("--one_query", action="store_true", help="whether to not concat append query after query")
-
-
+    parser.add_argument("--one_query", action="store_true", default=True, help="whether to not concat append query after query")
     # momentum
     parser.add_argument("--momentum", action="store_true")
     parser.add_argument("--init_retriever", type=str, default="")
@@ -102,10 +100,10 @@ def train_args():
     parser.add_argument("--data_augmentation", action="store_true")
     parser.add_argument('--augment_file', type=str, default="")
     parser.add_argument("--overwrite_cache", action="store_true", help="Overwrite the cached training sets")
-    parser.add_argument("--train_batch_size", default=128,
+    parser.add_argument("--train_batch_size", default=64,
                         type=int, help="Total batch size for training.")
     parser.add_argument("--per_gpu_train_batch_size", default=4,type=int, help="per-gpu batch size for training.")
-    parser.add_argument("--learning_rate", default=1e-5,
+    parser.add_argument("--learning_rate", default=2e-5,
                         type=float, help="The initial learning rate for Adam.")
     parser.add_argument("--adam_epsilon", default=1e-8, type=float,
                         help="Epsilon for Adam optimizer.")
@@ -117,11 +115,11 @@ def train_args():
                         help="How many steps to make in each estimator call.")
     parser.add_argument("--accumulate_gradients", type=int, default=1,
                         help="Number of steps to accumulate gradient on (divide the batch_size and accumulate)")
-    parser.add_argument('--seed', type=int, default=3,
+    parser.add_argument('--seed', type=int, default=1997,
                         help="random seed for initialization")
     parser.add_argument('--gradient_accumulation_steps', type=int, default=1,
                         help="Number of updates steps to accumualte before performing a backward/update pass.")
-    parser.add_argument('--eval_period', type=int, default=2500)
+    parser.add_argument('--eval_period', type=int, default=-1)
     parser.add_argument("--max_grad_norm", default=2.0, type=float, help="Max gradient norm.")
     parser.add_argument("--stop_drop", default=0, type=float)
     parser.add_argument("--use_adam", action="store_true")

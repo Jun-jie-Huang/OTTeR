@@ -1,17 +1,3 @@
-"""
-Evaluating trained retrieval model.
-
-Usage:
-python eval_ottqa_retrieval.py ${EVAL_DATA} ${CORPUS_VECTOR_PATH} ${id2doc} ${MODEL_CHECKPOINT} \
-     --batch-size 50 \
-     --beam-size-1 20 \
-     --beam-size-2 5 \
-     --topk 20 \
-     --shared-encoder \
-     --gpu \
-     --save-path ${PATH_TO_SAVE_RETRIEVAL}
-
-"""
 import sys
 
 sys.path.append('../')
@@ -33,7 +19,6 @@ from functools import partial
 # from retrieval.models.mhop_retriever import RobertaRetriever
 from retrieval.utils.basic_tokenizer import SimpleTokenizer
 from retrieval.utils.utils import (load_saved, move_to_cuda, para_has_answer, found_table)
-from retrieval.utils.utils import whitening
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -57,27 +42,14 @@ if __name__ == '__main__':
     parser.add_argument('--id2doc_path', type=str, default=None)
     parser.add_argument('--faiss_save_path', type=str, default="data/ottqa_index/ottqa_index_tapas")
     parser.add_argument("--output_save_path", type=str, default="")
-    # parser.add_argument('--model_path', type=str, default=None)
-
-    # parser.add_argument("--do_eval", action="store_true", help="Whether to run eval on the dev set.")
-    # parser.add_argument("--do_test", action="store_true", help="Whether to run eval on the test set.")
 
     # parser.add_argument('--topk', type=int, default=5, help="topk paths")
     parser.add_argument('--num_workers', type=int, default=20)
-    # parser.add_argument('--max_q_len', type=int, default=70)
-    # parser.add_argument('--max_c_len', type=int, default=512)
-    # parser.add_argument('--max_q_sp_len', type=int, default=350)
-    # parser.add_argument('--batch_size', type=int, default=100)
     parser.add_argument('--beam_size', type=int, default=100)
-    # parser.add_argument('--model_name', type=str, default='roberta-base')
-    parser.add_argument('--three_cat', action="store_true")
-    parser.add_argument('--whitening', action="store_true")
     parser.add_argument('--gpu', action="store_true")
     parser.add_argument('--save_index', action="store_true")
     parser.add_argument('--eval_only_ans', action="store_true")
     parser.add_argument('--eval_table_id', action="store_true")
-    # parser.add_argument('--shared_encoder', action="store_true")
-    # parser.add_argument("--stop_drop", default=0, type=float)
     parser.add_argument('--hnsw', action="store_true")
     args = parser.parse_args()
 
@@ -99,20 +71,9 @@ if __name__ == '__main__':
 
 
     logger.info("Loading corpus embeddings from {}".format(args.corpus_embeddings_path))
-    if args.three_cat:
-        d = 768 * 3
-    else:
-        d = 768
+    d = 768 * 3
     xb = np.load(args.corpus_embeddings_path).astype('float32')
     logger.info("corpus size: {}".format(xb.shape))
-    if args.whitening:
-        logger.info("Start doing PCA Whitening...")
-        # logger.info(query_embeddings.dtype)
-        # logger.info(xb.dtype)
-        query_embeddings, xb = whitening(query_embeddings, xb)
-        # logger.info(query_embeddings.dtype)
-        # logger.info(xb.dtype)
-        logger.info("Finish doing PCA Whitening...")
 
     if args.hnsw:
         if os.path.exists(args.faiss_save_path):
@@ -199,38 +160,6 @@ if __name__ == '__main__':
             tqdm(p.imap(searching, range(len(query_embeddings)), chunksize=16), total=len(query_embeddings), desc="Searching: ", ))
     metrics, retrieval_outputs = [item[0] for item in results], [item[1] for item in results]
 
-    # for idx, q_embeds_numpy in enumerate(tqdm(query_embeddings, desc='Searching: ')):
-    #     q_embeds_numpy = np.expand_dims(q_embeds_numpy, 0)
-    #     if args.hnsw:
-    #         q_embeds_numpy = convert_hnsw_query(q_embeds_numpy)
-    #     D, I = index.search(q_embeds_numpy, args.beam_size)
-    #
-    #     # for b_idx in range(bsize):
-    #     b_idx = 0
-    #     topk_tbs = []
-    #     for _, tb_id in enumerate(I[b_idx]):
-    #         tb = id2doc[str(tb_id)]
-    #         topk_tbs.append(tb)
-    #     if args.eval_only_ans:
-    #         gold_answers = ds_items[idx]["answer-text"]
-    #         metrics.append({
-    #                 "question": ds_items[idx]["question"],
-    #                 'table_recall': int(found_table(ds_items[idx]['table_id'], topk_tbs)),
-    #                 "ans_recall": int(para_has_answer(gold_answers, topk_tbs, simple_tokenizer)),
-    #                 "type": ds_items[idx].get("type", "single")
-    #         })
-    #     if args.output_save_path != "":
-    #         output = {"question_id": ds_items[idx]["question_id"],
-    #                   "question": ds_items[idx]["question"],
-    #                   "top_{}".format(args.beam_size): topk_tbs, }
-    #         if 'answer-text' in ds_items[idx]:
-    #             output['answer-text'] = ds_items[idx]['answer-text']
-    #         if 'table_id' in ds_items[idx]:
-    #             output['table_id'] = ds_items[idx]['table_id']
-    #         retrieval_outputs.append(output)
-
-
-
     if args.output_save_path != "":
         with open(args.output_save_path, "w") as out:
             for l in retrieval_outputs:
@@ -250,8 +179,6 @@ if __name__ == '__main__':
         r, t, a = get_recall(table_id_gold, table_id_preds, 1)
         logger.info("Table Recall @1: {}, {}/{}".format(r, t, a))
         r, t, a = get_recall(table_id_gold, table_id_preds, 3)
-        logger.info("Table Recall @3: {}, {}/{}".format(r, t, a))
-        r, t, a = get_recall(table_id_gold, table_id_preds, 5)
         logger.info("Table Recall @5: {}, {}/{}".format(r, t, a))
         r, t, a = get_recall(table_id_gold, table_id_preds, 10)
         logger.info("Table Recall @10: {}, {}/{}".format(r, t, a))
@@ -260,15 +187,7 @@ if __name__ == '__main__':
         r, t, a = get_recall(table_id_gold, table_id_preds, 20)
         logger.info("Table Recall @20: {}, {}/{}".format(r, t, a))
         r, t, a = get_recall(table_id_gold, table_id_preds, 25)
-        logger.info("Table Recall @25: {}, {}/{}".format(r, t, a))
-        r, t, a = get_recall(table_id_gold, table_id_preds, 30)
-        logger.info("Table Recall @30: {}, {}/{}".format(r, t, a))
-        r, t, a = get_recall(table_id_gold, table_id_preds, 40)
-        logger.info("Table Recall @40: {}, {}/{}".format(r, t, a))
-        r, t, a = get_recall(table_id_gold, table_id_preds, 50)
         logger.info("Table Recall @50: {}, {}/{}".format(r, t, a))
-        r, t, a = get_recall(table_id_gold, table_id_preds, 70)
-        logger.info("Table Recall @70: {}, {}/{}".format(r, t, a))
         r, t, a = get_recall(table_id_gold, table_id_preds, 100)
         logger.info("Table Recall @100: {}, {}/{}".format(r, t, a))
 
@@ -282,5 +201,3 @@ if __name__ == '__main__':
         for t in type2items.keys():
             logger.info(f"{t} Questions num: {len(type2items[t])}")
             logger.info(f'Ans Recall: {np.mean([m["ans_recall"] for m in type2items[t]])}')
-
-

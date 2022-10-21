@@ -144,22 +144,14 @@ def process_wiki_tables_with_hyphen(all_passages):
 
 
 def prepare_retrieve_table_fine_selection(kv):
-    table_id, table, passage_links = kv
+    table_id, table = kv
     linked_passage_dict = {}
-    if passage_links:
-        for key, value in passage_links.items():
-            row_id = int(key.split('_')[-1])
-            linked_passage_dict[row_id] = [[psg["id"] for psg in value], [psg["text"] for psg in value]]  # psg["title_text"], psg["query"]
 
     if 'wiki' in args.split:
         table['header'] = [[' '.join(item[0]), [item[1]]] for item in table['header']]
         table['data'] = [[[' '.join(item2[0]), item2[1]] for item2 in item1] for item1 in table['data']]
     header = [inst[0] for inst in table['header']]
     contents = [[cell[0] for cell in row] for row in table['data']]
-    if not args.maintain_ori_table:
-        header, contents = remove_null_header_column(header, contents)
-        header, contents = remove_sequence_number_column(header, contents)
-        table['data'] = remove_removed_contents(table['data'], contents)
     meta_data = {'title': table['title'],
                  'section_title': table['section_title'],
                  'header': header}
@@ -178,7 +170,6 @@ def prepare_retrieve_table_fine_selection(kv):
     # max_passages = 1
     passages = []
     passages_index = []
-    compare_output = []
     for i, row in enumerate(contents):
         _index = list(set([item for sublist in position2wiki[i].values() for item in sublist]))
         _index = list(filter(None, _index))
@@ -187,20 +178,11 @@ def prepare_retrieve_table_fine_selection(kv):
         raw_passages = [all_requests.get(index, None) for index in _index]
         raw_passages = list(filter(None, raw_passages))
         tfidf_query = [' '.join(header) + ' ' + ' '.join(row)]
-        if passage_links and i in linked_passage_dict:
-            gt_index, gt_passages = linked_passage_dict[i][0], linked_passage_dict[i][1]
-            out_psg = get_passages_traindev(tfidf_query=tfidf_query,
-                                            first_batch_passages={'idx': gt_index, 'psg': gt_passages},
-                                            second_batch_passages={'idx': _index, 'psg': raw_passages},
-                                            mode='sort_append_sort_psg')
-            compare_output.append({'has-link-gpt': out_psg['stats'], 'no-link-gpt': {}})
-        else:
-            gt_index, gt_passages = [], []
-            out_psg = get_passages_traindev(tfidf_query=tfidf_query,
-                                            first_batch_passages={'idx': _index, 'psg': raw_passages},
-                                            second_batch_passages={'idx': [], 'psg': []},
-                                            mode='sort_psg')
-            compare_output.append({'has-link-gpt': {}, 'no-link-gpt': out_psg['stats']})
+        gt_index, gt_passages = [], []
+        out_psg = get_passages_traindev(tfidf_query=tfidf_query,
+                                        first_batch_passages={'idx': _index, 'psg': raw_passages},
+                                        second_batch_passages={'idx': [], 'psg': []},
+                                        mode='sort_psg')
         output_passages = out_psg['psg']
         passages.append(output_passages)
         passages_index.append({'all_index': _index + gt_index, 's_index': out_psg['idx']})
@@ -237,17 +219,11 @@ def prepare_retrieve_table_fine_selection(kv):
         example['intro'] = table['intro']
         processed_data.append(example)
     # return processed_data
-    return {'retrieval_data': processed_data, 'compare_output': compare_output}
+    return {'retrieval_data': processed_data,}
 
 
 def get_filename(args):
     prefix = ''
-    if args.aug_gpt:
-        prefix += '_gpt'
-    if args.aug_blink:
-        prefix += '_blink'
-    if args.maintain_ori_table:
-        prefix += '_oriTable'
     prefix += '_{}'.format(args.prefix) if args.prefix else ''
 
     save_path = '{}/preprocessed_data/retrieval/{}{}.pkl'.format(basic_dir, args.split, prefix)
@@ -258,30 +234,19 @@ def get_filename(args):
 
 
 if __name__ == '__main__':
-    """
-        # new:
-        python corpus_preprocess.py --split table_corpus --replace_link_passages --aug_gpt
-        python corpus_preprocess.py --split table_corpus_blink
-        python corpus_preprocess.py --split table_corpus_wiki
-            
-    """
     parser = argparse.ArgumentParser()
-    # parser.add_argument('--split', required=True, type=str)
-    parser.add_argument('--split', default='table_corpus', type=str, choices=['table_corpus', 'table_corpus_blink', 'table_corpus_wiki'])
+    parser.add_argument('--split', default='table_corpus_blink', type=str)
     parser.add_argument('--model', default='../../OTT-QA/retriever/title_sectitle_schema/index-tfidf-ngram=2-hash=16777216-tokenizer=simple.npz', type=str)
-    # parser.add_argument('--nega', default='intable', type=str, choices=['flat', 'intable', 'intable_contra'])
     parser.add_argument('--prefix', default='', type=str, help="['blink', 'metagptdoc_woextraposi', 'metagptdoc_append', 'metagptdoc_row',]")
-    # parser.add_argument('--task', default='ottqa-train', type=str, choices=['ottqa-train', 'ottqa-dev', 'ottqa-test'])
     parser.add_argument('--max_passages', default=3, type=int)
     parser.add_argument('--max_tokens', default=360, type=int)
     parser.add_argument('--max_cell_tokens', default=36, type=int)
     parser.add_argument('--max_header_cell_tokens', default=20, type=int)
     parser.add_argument('--run_id', default=1, type=int)  # TODO
     parser.add_argument('--reprocess', action='store_true')
-    parser.add_argument('--replace_link_passages', action='store_true')
-    parser.add_argument('--aug_blink',action='store_true', help="augment retrieval data with blink links")
-    parser.add_argument('--aug_gpt',action='store_true', help="augment retrieval data with gpt links")
-    parser.add_argument('--maintain_ori_table', action='store_false')
+    # parser.add_argument('--aug_blink',action='store_true', help="augment retrieval data with blink links")
+    # parser.add_argument('--aug_gpt',action='store_true', help="augment retrieval data with gpt links")
+    # parser.add_argument('--maintain_ori_table', action='store_false')
     args = parser.parse_args()
 
     logger = logging.getLogger()
@@ -310,31 +275,27 @@ if __name__ == '__main__':
             all_tables = json.load(f)
         with open('{}/data_wikitable/all_passages.json'.format(basic_dir), 'r') as f:
             all_requests = json.load(f)
-        if args.split == 'table_corpus_wiki':
-            all_requests = process_wiki_tables_with_hyphen(all_requests)
+        # if args.split == 'table_corpus_wiki':
+        #     all_requests = process_wiki_tables_with_hyphen(all_requests)
         logger.info("Finish loading all tables and all requests.")
 
-        table2tbid = {table_id: {} for table_id in all_tables.keys()}
-        if args.replace_link_passages:
-            if args.aug_gpt:
-                logger.info("Start loading gpt2 augmentations to table2tbid.")
-                tmp_data = read_jsonl('{}/data_wikitable/tfidf_augmentation_results.json'.format(basic_dir))
-                for line in tmp_data:
-                    tbid = '_'.join(line[0].split('_')[:-1])  # "tableId_4" -> "tableId"
-                    table2tbid[tbid][line[0]] = line[1]
+        # table2tbid = {table_id: {} for table_id in all_tables.keys()}
+        # if args.replace_link_passages:
+        #     if args.aug_gpt:
+        #         logger.info("Start loading gpt2 augmentations to table2tbid.")
+        #         tmp_data = read_jsonl('{}/data_wikitable/tfidf_augmentation_results.json'.format(basic_dir))
+        #         for line in tmp_data:
+        #             tbid = '_'.join(line[0].split('_')[:-1])  # "tableId_4" -> "tableId"
+        #             table2tbid[tbid][line[0]] = line[1]
 
         logger.info('Start processing tables.')
-        zipped = [[k, all_tables[k], table2tbid[k]] for k in all_tables.keys()]
+        zipped = [[k, all_tables[k]] for k in all_tables.keys()]
         with Pool(n_threads) as p:
             func_ = partial(prepare_retrieve_table_fine_selection)
             all_results = list(tqdm(p.imap(func_, zipped, chunksize=16), total=len(zipped), desc="process tables", ))
             results = [res['retrieval_data'] for res in all_results]
-            compare_output = [res['compare_output'] for res in all_results]
         results = [item for inst in results for item in inst]
 
         logger.info("start saving to {}".format(save_path))
         with open(save_path, 'wb') as f:
             pickle.dump(results, f)
-        with open(cmp_save_path, 'w', encoding='utf-8') as f:
-            json.dump(compare_output, f, indent=4)
-

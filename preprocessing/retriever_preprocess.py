@@ -202,14 +202,8 @@ def prepare_training_data_intable(zipped_data, table_path, request_path):
         tfidf_query = [data['question'] + ' ' + ' '.join(header) + ' ' + ' '.join(row)]
         # import pdb;  pdb.set_trace()
         if i in positive_row_index_in_answer_node:
-            # if line i in answer node
-            if args.positive_cell:  # else positive row
-                # _index = list(set([data['answer-node'][_i][2] for _i, (x, y) in enumerate(positive_index) if x == i]))
-                _index = list(set([data['answer-node'][_i][2] for _i, (x, y) in enumerate(positive_index) if x == i]))
-            else:
-                # TODO put the links of the cell at the begging, and put the remaining behind
-                _index_cell = list(set([data['answer-node'][_i][2] for _i, (x, y) in enumerate(positive_index) if x == i]))
-                _index = list(set([item for sublist in position2wiki[i].values() for item in sublist]))
+            _index_cell = list(set([data['answer-node'][_i][2] for _i, (x, y) in enumerate(positive_index) if x == i]))
+            _index = list(set([item for sublist in position2wiki[i].values() for item in sublist]))
             if None in _index:
                 _index.remove(None)
             raw_passages = [requested_documents[index] for index in _index]
@@ -301,27 +295,12 @@ def prepare_training_data_intable(zipped_data, table_path, request_path):
                 neg_i = random.sample(population, 1)[0]
 
             if args.nega == 'intable_contra':
-                if args.contra_double:
-                    double_example = copy.deepcopy(example)
-                    double_example['neg_table'] = raw_tables[neg_i]
-                    double_example['neg_passages'] = passages[neg_i]
-                    double_example['neg_passages_id'] = passages_index[neg_i]
-                    double_example['neg_row_id'] = neg_i
-                    processed_data.append(double_example)
                 # import pdb;  pdb.set_trace()
                 if len(in_table_in_passage[i]) == 2:
-                    if args.contra_double:
-                        choice_i = random.choices([i, neg_i])[0]
-                        choice_j = list(set([i, neg_i]) - set([choice_i]))[0]
-                        example['neg_table'] = raw_tables[choice_i]
-                        example['neg_passages'] = passages[choice_j]
-                        example['neg_passages_id'] = passages_index[choice_j]
-                        example['neg_row_id'] = choice_i
-                    else:
-                        example['neg_table'] = raw_tables[neg_i]
-                        example['neg_passages'] = passages[neg_i]
-                        example['neg_passages_id'] = passages_index[neg_i]
-                        example['neg_row_id'] = neg_i
+                    example['neg_table'] = raw_tables[neg_i]
+                    example['neg_passages'] = passages[neg_i]
+                    example['neg_passages_id'] = passages_index[neg_i]
+                    example['neg_row_id'] = neg_i
                 elif len(in_table_in_passage[i])==1 and in_table_in_passage[i][0] == 'table':
                     example['neg_table'] = raw_tables[neg_i]
                     example['neg_passages'] = passages[i]
@@ -335,7 +314,6 @@ def prepare_training_data_intable(zipped_data, table_path, request_path):
                 else:
                     print(in_table_in_passage)
                     continue
-                # finish process negatives
             elif args.nega == 'intable_random':
                 example['neg_table'] = raw_tables[neg_i]
                 example['neg_passages'] = passages[neg_i]
@@ -358,9 +336,6 @@ def prepare_training_data_intable(zipped_data, table_path, request_path):
 
             processed_data.append(example)
     all_block_data = []
-    if args.save_all_blocks:
-        all_block_data = [{'qid': data['question_id'], 'tid':data['table_id'], 't': t, 'p': p, 'i': i,}
-                          for t, p, i in zip(raw_tables, passages, passages_index)]
     return {'retrieval_data': processed_data, 'compare_output': compare_output, 'all_block_data': all_block_data}
 
 
@@ -368,10 +343,7 @@ def get_filename(args):
     prefix = args.nega
     if args.aug_blink:
         prefix += '_blink'
-    if not args.positive_cell:
-        prefix += '_row'
-    if args.contra_double:
-        prefix += '_double'
+    prefix += '_row'
     prefix += '_{}'.format(args.prefix) if args.prefix else ''
 
     save_path = '{}/preprocessed_data/retrieval/{}_{}.pkl'.format(basic_dir, args.split, prefix)
@@ -395,14 +367,11 @@ if __name__ == '__main__':
     parser.add_argument('--max_passages', default=3, type=int)
     parser.add_argument('--max_tokens', default=360, type=int)
     parser.add_argument('--max_cell_tokens', default=36, type=int)
-    parser.add_argument('--max_header_cell_tokens', default=20, type=int)
     parser.add_argument('--run_id', default=1, type=int)
     parser.add_argument('--reprocess', action='store_true')
-    parser.add_argument('--replace_link_passages', action='store_true')
     parser.add_argument('--aug_blink',action='store_true', help="augment retrieval data with blink links")
-    parser.add_argument('--contra_double', action='store_true')
-    parser.add_argument('--positive_cell', action='store_true')
-    parser.add_argument('--save_all_blocks', action='store_true')
+    # parser.add_argument('--contra_double', action='store_true')
+    # parser.add_argument('--positive_cell', action='store_true')
     args = parser.parse_args()
 
     logger = logging.getLogger()
@@ -427,35 +396,34 @@ if __name__ == '__main__':
 
             table2tbid = {item['table_id']:{} for item in data}
             logger.info("num of table2tbid: {} ".format(len(table2tbid)))
-            if args.replace_link_passages:
-                if args.aug_blink:
-                    path = f'{basic_dir}/data_wikitable/all_constructed_blink_tables.json'
-                    logger.info("aug_blink: ")
-                    logger.info("reading constructed tables with links from: {}".format(path))
-                    data_links = read_json(path)
-                    with open(f'{basic_dir}/data_wikitable/all_passages.json', 'r', encoding='utf-8') as fp:
-                        all_passages = json.load(fp)
-                    for tbid in table2tbid.keys():
-                        table = data_links.get(tbid, None)
-                        if table:
-                            if table2tbid.get(tbid, None):
-                                for table_block_id, combined_psgs in table2tbid[tbid].items():
-                                    row_id = int(table_block_id.split('_')[-1])
-                                    old_psg_keys = [item['id'] for item in combined_psgs]
-                                    blink_ids = [psg_id for cell in table['data'][row_id] for psg_id in cell[1]]
-                                    plus_ids = [id for id in blink_ids if id not in old_psg_keys]
-                                    plus_data = [{'id': id, 'text': all_passages[id],
-                                                  'title_text': ' '.join(id[6:].split('_')),
-                                                  'query': ' '.join(id[6:].split('_'))} for id in plus_ids]
-                                    table2tbid[tbid][table_block_id].extend(plus_data)
-                            else:
-                                for row_id, row in enumerate(table['data']):
-                                    table_block_id = '{}_{}'.format(tbid, row_id)
-                                    plus_ids = [psg_id for cell in row for psg_id in cell[1]]
-                                    plus_data = [{'id': id, 'text': all_passages[id],
-                                                  'title_text': ' '.join(id[6:].split('_')),
-                                                  'query': ' '.join(id[6:].split('_'))} for id in plus_ids]
-                                    table2tbid[tbid][table_block_id] = plus_data
+            if args.aug_blink:
+                path = f'{basic_dir}/data_wikitable/all_constructed_blink_tables.json'
+                logger.info("aug_blink: ")
+                logger.info("reading constructed tables with links from: {}".format(path))
+                data_links = read_json(path)
+                with open(f'{basic_dir}/data_wikitable/all_passages.json', 'r', encoding='utf-8') as fp:
+                    all_passages = json.load(fp)
+                for tbid in table2tbid.keys():
+                    table = data_links.get(tbid, None)
+                    if table:
+                        if table2tbid.get(tbid, None):
+                            for table_block_id, combined_psgs in table2tbid[tbid].items():
+                                row_id = int(table_block_id.split('_')[-1])
+                                old_psg_keys = [item['id'] for item in combined_psgs]
+                                blink_ids = [psg_id for cell in table['data'][row_id] for psg_id in cell[1]]
+                                plus_ids = [id for id in blink_ids if id not in old_psg_keys]
+                                plus_data = [{'id': id, 'text': all_passages[id],
+                                              'title_text': ' '.join(id[6:].split('_')),
+                                              'query': ' '.join(id[6:].split('_'))} for id in plus_ids]
+                                table2tbid[tbid][table_block_id].extend(plus_data)
+                        else:
+                            for row_id, row in enumerate(table['data']):
+                                table_block_id = '{}_{}'.format(tbid, row_id)
+                                plus_ids = [psg_id for cell in row for psg_id in cell[1]]
+                                plus_data = [{'id': id, 'text': all_passages[id],
+                                              'title_text': ' '.join(id[6:].split('_')),
+                                              'query': ' '.join(id[6:].split('_'))} for id in plus_ids]
+                                table2tbid[tbid][table_block_id] = plus_data
 
             logger.info("{}/{} tables have replaced linked passages".format(sum([len(tbs)>0 for tbs in table2tbid.values()]), len(table2tbid)))
 
@@ -466,8 +434,6 @@ if __name__ == '__main__':
                 all_results = list(tqdm(p.imap(func_, zipped_data, chunksize=16), total=len(data), desc="convert examples to trainable data",))
                 results = [res['retrieval_data'] for res in all_results]
                 compare_output = [res['compare_output'] for res in all_results]
-                if args.save_all_blocks:
-                    all_block_data = [res['all_block_data'] for res in all_results]
             # # debug
             # for d in zipped_data:
             #     all_results = prepare_training_data_intable(d, table_path=table_path, request_path=request_path)
@@ -482,10 +448,6 @@ if __name__ == '__main__':
                 pickle.dump(results, f)
             with open(cmp_save_path, 'w', encoding='utf-8') as f:
                 json.dump(compare_output, f, indent=4)
-            if args.save_all_blocks:
-                with open(all_blocks_path, 'wb') as f:
-                    pickle.dump(all_block_data, f)
 
     else:
         raise NotImplementedError
-

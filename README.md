@@ -70,9 +70,9 @@ This script will download the crawled tables and linked passages from Wikiepdia 
 
 ##### Step 1-1: Link table cells with passages using BLINK
 
-We strongly suggest that you downloading the linked dataset from this link and skipping this step, since it costs too much time. You can download the files from this link TODO.
+We strongly suggest you to download our processed linked passage from [all_constructed_blink_tables.json](https://drive.google.com/drive/folders/1aQTOWdJ-khBm7x30y9w7LLTgT3tQ0xCy?usp=sharing) and skipping this step 1-1, since it costs too much time. You can download the `all_constructed_blink_tables.json.gz` file, then unzip it with `gunzip` and move the json file to `./data_wikitable`. After that, go tohttps://drive.google.com/drive/folders/1aQTOWdJ-khBm7x30y9w7LLTgT3tQ0xCy?usp=sharing step 2-2 to preprocess. (You can also use the linked passages [all_constructed_tables.json](https://drive.google.com/drive/folders/1aQTOWdJ-khBm7x30y9w7LLTgT3tQ0xCy?usp=sharing) following OTT-QA)
 
-The running script:
+If you want to link by yourself, you can run the following script:
 
 ```
 cd scripts/
@@ -88,8 +88,8 @@ Linking using the above script takes about 40-50 hours with 8 Tesla V100 32G GPU
 ##### Step 1-2: Preprocess training data for retrieval
 
 ```
-python retriever_preprocess.py --split train --nega intable_contra --replace_link_passages --aug_blink
-python retriever_preprocess.py --split dev --nega intable_contra --replace_link_passages --aug_blink
+python retriever_preprocess.py --split train --nega intable_contra --aug_blink
+python retriever_preprocess.py --split dev --nega intable_contra --aug_blink
 ```
 
 These two scripts create data used for training.
@@ -97,10 +97,18 @@ These two scripts create data used for training.
 ##### Step 1-3: Build retrieval corpus
 
 ```
-python corpus_preprocess.py --split table_corpus_blink
+python corpus_preprocess.py
 ```
 
-This script creates corpus data used for inference.
+This script encode the whole corpus table-text blocks used for retrieval.
+
+##### Step 1-4: Download tbid2doc file 
+
+Download the `tfidf_augmentation_results.json.gz` file [here](https://drive.google.com/drive/folders/1aQTOWdJ-khBm7x30y9w7LLTgT3tQ0xCy?usp=sharing), then use the following command to unzip and move the unzipped json file to `./data_wikitable`. This file will be used for preprocessing in step 4-3 and step 5-1.
+
+```
+gunzip tfidf_augmentation_results.json.gz
+```
 
 #### Step2: Pretrain the OTTeR with mixed-modality synthetic pre-training
 
@@ -202,45 +210,29 @@ export BASIC_PATH=.
 export DATA_PATH=${BASIC_PATH}/preprocessed_data/retrieval
 export TRAIN_DATA_PATH=${BASIC_PATH}/preprocessed_data/retrieval/train_intable_contra_blink_row.pkl
 export DEV_DATA_PATH=${BASIC_PATH}/preprocessed_data/retrieval/dev_intable_contra_blink_row.pkl
-export MODEL_PATH=${BASIC_PATH}/models/otter
+export RT_MODEL_PATH=${BASIC_PATH}/models/otter
 export PRETRAIN_MODEL_PATH=${BASIC_PATH}/models/pretrain/shared_roberta_bart_rand_row/checkpoint-87000/
-export TOKENIZERS_PARALLELISM=false
 export TABLE_CORPUS=table_corpus_blink
-mkdir ${MODEL_PATH}
-mkdir ${MODEL_PATH}/run_logs
-mkdir ${MODEL_PATH}/run_logs/${TABLE_CORPUS}
+mkdir ${RT_MODEL_PATH}
 
-cd script/
+cd ./scripts
 CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7" python train_1hop_tb_retrieval.py \
   --do_train \
   --prefix ${RUN_ID} \
   --predict_batch_size 800 \
   --model_name roberta-base \
   --shared_encoder \
-  --no_proj \
-  --normalize_table \
-  --three_cat \
-  --part_pooling first \
-  --one_query \
   --train_batch_size 64 \
-  --learning_rate 2e-5 \
   --fp16 \
-  --train_file ${TRAIN_DATA_PATH} \
-  --predict_file ${DEV_DATA_PATH}  \
   --init_checkpoint ${PRETRAIN_MODEL_PATH}/checkpoint_best.pt \
-  --save_tensor_path ${BASIC_PATH}/models/continue_train/shared_roberta_bart_threecat_basic_mean_one_query_row_corpus_wiki_3000_newTensors/stored_training_tensors   \
-  --output_dir ${MODEL_PATH} \
-  --seed 1997 \
-  --eval_period -1 \
   --max_c_len 512 \
   --max_q_len 70 \
-  --metadata \
-  --psg_mode ori \
   --num_train_epochs 20 \
-  --accumulate_gradients 1 \
-  --gradient_accumulation_steps 1 \
   --warmup_ratio 0.1 \
-  --num_workers 24  2>&1 |tee ${MODEL_PATH}/run_logs/retrieval_training.log
+  --train_file ${TRAIN_DATA_PATH} \
+  --predict_file ${DEV_DATA_PATH} \
+  --output_dir ${RT_MODEL_PATH} \
+  2>&1 |tee ./retrieval_training.log
 ```
 
 The training step takes about 10~12 hours with 8 Tesla V100 16G GPUs.
@@ -252,23 +244,18 @@ The training step takes about 10~12 hours with 8 Tesla V100 16G GPUs.
 Encode dev questions. 
 
 ```
+cd ./scripts
 CUDA_VISIBLE_DEVICES="0,1,2,3" python encode_corpus.py \
     --do_predict \
     --predict_batch_size 100 \
     --model_name roberta-base \
     --shared_encoder \
-    --no_proj \
-    --metadata \
-    --normalize_table \
-    --three_cat \
-    --part_pooling first \
-    --one_query \
     --predict_file ${BASIC_PATH}/data_ottqa/dev.json \
-    --init_checkpoint ${MODEL_PATH}/checkpoint_best.pt \
-    --embed_save_path ${MODEL_PATH}/indexed_embeddings/question_dev \
+    --init_checkpoint ${RT_MODEL_PATH}/checkpoint_best.pt \
+    --embed_save_path ${RT_MODEL_PATH}/indexed_embeddings/question_dev \
     --fp16 \
     --max_c_len 512 \
-    --num_workers 8  2>&1 |tee ${MODEL_PATH}/run_logs/encode_corpus_dev.log
+    --num_workers 8  2>&1 |tee ./encode_corpus_dev.log
 ```
 
 Encode table-text block corpus. It takes about 3 hours to encode.
@@ -277,22 +264,15 @@ Encode table-text block corpus. It takes about 3 hours to encode.
 CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7" python encode_corpus.py \
     --do_predict \
     --encode_table \
-    --metadata \
-    --psg_mode ori \
     --shared_encoder \
-    --no_proj \
-    --normalize_table \
-    --three_cat \
-    --part_pooling first \
-    --one_query \
     --predict_batch_size 1600 \
     --model_name roberta-base \
     --predict_file ${DATA_PATH}/${TABLE_CORPUS}.pkl \
-    --init_checkpoint ${MODEL_PATH}/checkpoint_best.pt \
-    --embed_save_path ${MODEL_PATH}/indexed_embeddings/${TABLE_CORPUS} \
+    --init_checkpoint ${RT_MODEL_PATH}/checkpoint_best.pt \
+    --embed_save_path ${RT_MODEL_PATH}/indexed_embeddings/${TABLE_CORPUS} \
     --fp16 \
     --max_c_len 512 \
-    --num_workers 24  2>&1 |tee ${MODEL_PATH}/run_logs/${TABLE_CORPUS}/encode_corpus_table_blink.log
+    --num_workers 24  2>&1 |tee ./encode_corpus_table_blink.log
 ```
 
 ##### Step 4-2: Build index and search with FAISS
@@ -303,29 +283,25 @@ The reported results are table recalls.
 python eval_ottqa_retrieval.py \
 	 --raw_data_path ${BASIC_PATH}/data_ottqa/dev.json \
 	 --eval_only_ans \
-	 --three_cat \
-	 --query_embeddings_path ${MODEL_PATH}/indexed_embeddings/question_dev.npy \
-	 --corpus_embeddings_path ${MODEL_PATH}/indexed_embeddings/${TABLE_CORPUS}.npy \
-	 --id2doc_path ${MODEL_PATH}/indexed_embeddings/${TABLE_CORPUS}/id2doc.json \
-     --output_save_path ${MODEL_PATH}/indexed_embeddings/dev_output_k100_${TABLE_CORPUS}.json \
-     --beam_size 100  2>&1 |tee ${MODEL_PATH}/run_logs/${TABLE_CORPUS}/results_retrieval_dev.log
+	 --query_embeddings_path ${RT_MODEL_PATH}/indexed_embeddings/question_dev.npy \
+	 --corpus_embeddings_path ${RT_MODEL_PATH}/indexed_embeddings/${TABLE_CORPUS}.npy \
+	 --id2doc_path ${RT_MODEL_PATH}/indexed_embeddings/${TABLE_CORPUS}/id2doc.json \
+     --output_save_path ${RT_MODEL_PATH}/indexed_embeddings/dev_output_k100_${TABLE_CORPUS}.json \
+     --beam_size 100  2>&1 |tee ./results_retrieval_dev.log
 ```
 
 ##### Step 4-3: Generate retrieval output for stage-2 question answering.
 
-This step also evaluates the table block recall defined in our paper. We use the top 15 table-text blocks for QA, i.e.,`CONCAT_TBS=15` .
+This step also evaluates the table block recall defined in our paper. We use the top 15 table-text blocks for QA, i.e.,`CONCAT_TBS=15` . 
 
 ```
-for CONCAT_TBS in 1 5 10 15 20 30 50 100;
-do
+export CONCAT_TBS=15
 python ../preprocessing/qa_preprocess.py \
      --split dev \
-  --reprocess \
      --topk_tbs ${CONCAT_TBS} \
-     --retrieval_results_file ${MODEL_PATH}/indexed_embeddings/dev_output_k100_${TABLE_CORPUS}.json \
-     --qa_save_path ${MODEL_PATH}/dev_preprocessed_${TABLE_CORPUS}_k100cat${CONCAT_TBS}.json \
-     2>&1 |tee ${MODEL_PATH}/run_logs/${TABLE_CORPUS}/preprocess_qa_dev_k100cat${CONCAT_TBS}.log;
-done
+     --retrieval_results_file ${RT_MODEL_PATH}/indexed_embeddings/dev_output_k100_${TABLE_CORPUS}.json \
+     --qa_save_path ${RT_MODEL_PATH}/dev_preprocessed_${TABLE_CORPUS}_k100cat${CONCAT_TBS}.json \
+     2>&1 |tee ./preprocess_qa_dev_k100cat${CONCAT_TBS}.log;
 ```
 
 ### QA part -- Longformer Reader
@@ -344,34 +320,28 @@ CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7" python encode_corpus.py \
     --predict_batch_size 200 \
     --model_name roberta-base \
     --shared_encoder \
-    --no_proj \
-    --metadata \
-    --normalize_table \
-    --three_cat \
-    --part_pooling first \
-    --one_query \
     --predict_file ${BASIC_PATH}/data_ottqa/train.json \
-    --init_checkpoint ${MODEL_PATH}/checkpoint_best.pt \
-    --embed_save_path ${MODEL_PATH}/indexed_embeddings/question_train \
+    --init_checkpoint ${RT_MODEL_PATH}/checkpoint_best.pt \
+    --embed_save_path ${RT_MODEL_PATH}/indexed_embeddings/question_train \
     --fp16 \
     --max_c_len 512 \
-    --num_workers 16  2>&1 |tee ${MODEL_PATH}/run_logs/encode_corpus_train.log
+    --num_workers 16  2>&1 |tee ./encode_corpus_train.log
 
 python eval_ottqa_retrieval.py \
 	   --raw_data_path ${BASIC_PATH}/data_ottqa/train.json \
 	   --eval_only_ans \
-	   --three_cat \
-	   --query_embeddings_path ${MODEL_PATH}/indexed_embeddings/question_train.npy \
-	   --corpus_embeddings_path ${MODEL_PATH}/indexed_embeddings/${TABLE_CORPUS}.npy \
-	   --id2doc_path ${MODEL_PATH}/indexed_embeddings/${TABLE_CORPUS}/id2doc.json \
-	   --output_save_path ${MODEL_PATH}/indexed_embeddings/train_output_k100_${TABLE_CORPUS}.json \
-	   --beam_size 100  2>&1 |tee ${MODEL_PATH}/run_logs/${TABLE_CORPUS}/results_retrieval_train.log
+	   --query_embeddings_path ${RT_MODEL_PATH}/indexed_embeddings/question_train.npy \
+	   --corpus_embeddings_path ${RT_MODEL_PATH}/indexed_embeddings/${TABLE_CORPUS}.npy \
+	   --id2doc_path ${RT_MODEL_PATH}/indexed_embeddings/${TABLE_CORPUS}/id2doc.json \
+	   --output_save_path ${RT_MODEL_PATH}/indexed_embeddings/train_output_k100_${TABLE_CORPUS}.json \
+	   --beam_size 100  2>&1 |tee ./results_retrieval_train.log
+
 python ../preprocessing/qa_preprocess.py \
 	    --split train \
 	    --topk_tbs 15 \
-	    --retrieval_results_file ${MODEL_PATH}/indexed_embeddings/train_output_k100_${TABLE_CORPUS}.json \
-	    --qa_save_path ${MODEL_PATH}/train_preprocessed_${TABLE_CORPUS}_k100.json \
-	    2>&1 |tee ${MODEL_PATH}/run_logs/${TABLE_CORPUS}/preprocess_qa_train_k100.log
+	    --retrieval_results_file ${RT_MODEL_PATH}/indexed_embeddings/train_output_k100_${TABLE_CORPUS}.json \
+	    --qa_save_path ${RT_MODEL_PATH}/train_preprocessed_${TABLE_CORPUS}_k100cat${CONCAT_TBS}.json \
+	    2>&1 |tee ./preprocess_qa_train_k100.log
 ```
 
 Note that we also requires the retrieval output for dev. set. You can refer to Step 4-3 to obtain the processed qa data.
@@ -379,68 +349,55 @@ Note that we also requires the retrieval output for dev. set. You can refer to S
 ##### Step 5-2: Train
 
 ```
-export RUN_ID=2
 export BASIC_PATH=.
 export MODEL_NAME=mrm8488/longformer-base-4096-finetuned-squadv2
-export TOKENIZERS_PARALLELISM=false
 export TOPK=15
-export MODEL_PATH=${BASIC_PATH}/models/qa_model/longformer_pretrain_rand_row_87000_first_blink_${TOPK}_squadv2
-mkdir ${MODEL_PATH}
-mkdir ${MODEL_PATH}/run_logs
+export QA_MODEL_PATH=${BASIC_PATH}/models/qa_longformer_${TOPK}_squadv2
+mkdir ${QA_MODEL_PATH}
 
 CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7" python train_final_qa.py \
     --do_train \
     --do_eval \
     --model_type longformer \
     --dont_save_cache \
-    --repreprocess \
     --overwrite_cache \
-    --model_name_or_path ${MODEL_NAME} \
-	--add_special_tokens \
+    --model_name_or_path ${QA_MODEL_PATH} \
     --evaluate_during_training \
-    --data_dir ${BASIC_PATH}/models/continue_train/shared_roberta_bart_row_corpus_wiki_87000_threecat_basic_one_query_first \
-    --output_dir ${MODEL_PATH} \
-    --train_file train_preprocessed_table_corpus_blink_k100cat15.json \
-    --dev_file dev_preprocessed_table_corpus_blink_k100cat15.json \
-    --prefix pretrain_row_87000 \
+    --data_dir ${RT_MODEL_PATH} \
+    --output_dir ${QA_MODEL_PATH} \
+    --train_file train_preprocessed_${TABLE_CORPUS}_k100cat${CONCAT_TBS}.json \
+    --dev_file dev_preprocessed_${TABLE_CORPUS}_k100cat${CONCAT_TBS}.json \
     --per_gpu_train_batch_size 2 \
     --per_gpu_eval_batch_size 8 \
     --learning_rate 1e-5 \
     --num_train_epochs 4 \
     --max_seq_length 4096 \
     --doc_stride 1024 \
-    --num_tokenizer_vocab 50272 \
     --topk_tbs ${TOPK} \
-    --threads 24  2>&1 | tee ${MODEL_PATH}/run_logs/train_qa_longformer-base-pretrain87000-blink-top${TOPK}.log
+    2>&1 | tee ./train_qa_longformer-base-top${TOPK}.log
 ```
 
 #### Step 6: Evaluating the QA performance
 
 ```
 export BASIC_PATH=.
-export TOKENIZERS_PARALLELISM=false
 export TOPK=15
-export MODEL_PATH=${BASIC_PATH}/models/qa_model/longformer_pretrain_rand_row_87000_first_blink_${TOPK}_squadv2
+export QA_MODEL_PATH=${BASIC_PATH}/models/qa_longformer_${TOPK}_squadv2
+
 CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7" python train_final_qa.py \
     --do_eval \
     --model_type longformer \
     --dont_save_cache \
+    --overwrite_cache \
     --model_name_or_path ${MODEL_NAME} \
-	--add_special_tokens \
-    --evaluate_during_training \
-    --data_dir ${BASIC_PATH}/models/continue_train/shared_roberta_bart_row_corpus_wiki_87000_threecat_basic_one_query_first \
-    --output_dir ${MODEL_PATH} \
-    --train_file train_preprocessed_table_corpus_blink_k100cat15.json \
-    --dev_file dev_preprocessed_table_corpus_blink_k100cat15.json\
-    --prefix pretrain_row_87000 \
+    --data_dir ${RT_MODEL_PATH} \
+    --output_dir ${QA_MODEL_PATH} \
+    --dev_file dev_preprocessed_${TABLE_CORPUS}_k100cat${CONCAT_TBS}.json\
     --per_gpu_eval_batch_size 16 \
     --max_seq_length 4096 \
     --doc_stride 1024 \
-    --num_tokenizer_vocab 50272 \
     --topk_tbs ${TOPK} \
-    --repreprocess \
-    --overwrite_cache \
-    --threads 24  2>&1 | tee ${MODEL_PATH}/run_logs/test_qa_longformer-base-pretrain87000-blink-top${TOPK}.log
+    2>&1 | tee ./test_qa_longformer-base-top${TOPK}.log
 ```
 
 
@@ -449,9 +406,27 @@ CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7" python train_final_qa.py \
 
 ### Reference
 
-If you find this project useful, please cite it using the following format
+If you find our code useful to you, please cite it using the following format:
 
 ```
+@article{Huang2022OTTER,
+  title={Mixed-modality Representation Learning and Pre-training for Joint Table-and-Text Retrieval in OpenQA},
+  author={Huang, Junjie and Zhong, Wanjun and Liu, Qian and Gong, Ming and Jiang, Daxin and Duan, Nan},
+  journal={arXiv preprint arXiv:2210.05197},
+  year={2022}
+}
+```
+
+You can also check our another paper focusing on reasoning
 
 ```
+@inproceedings{Zhong2022ReasoningOH,
+  title={Reasoning over Hybrid Chain for Table-and-Text Open Domain Question Answering},
+  author={Wanjun Zhong and Junjie Huang and Qian Liu and Ming Zhou and Jiahai Wang and Jian Yin and Nan Duan},
+  booktitle={IJCAI},
+  year={2022}
+}
+```
+
+
 
