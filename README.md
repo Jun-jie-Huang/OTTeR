@@ -285,7 +285,7 @@ CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7" python train_final_qa.py \
     --model_type longformer \
     --dont_save_cache \
     --overwrite_cache \
-    --model_name_or_path ${QA_MODEL_PATH} \
+    --model_name_or_path ${MODEL_NAME} \
     --evaluate_during_training \
     --data_dir ${RT_MODEL_PATH} \
     --output_dir ${QA_MODEL_PATH} \
