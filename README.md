@@ -329,11 +329,16 @@ CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7" python train_final_qa.py \
 If you find our code useful to you, please cite it using the following format:
 
 ```
-@article{Huang2022OTTER,
-  title={Mixed-modality Representation Learning and Pre-training for Joint Table-and-Text Retrieval in OpenQA},
-  author={Huang, Junjie and Zhong, Wanjun and Liu, Qian and Gong, Ming and Jiang, Daxin and Duan, Nan},
-  journal={arXiv preprint arXiv:2210.05197},
-  year={2022}
+@inproceedings{huang-etal-2022-mixed,
+    title = "Mixed-modality Representation Learning and Pre-training for Joint Table-and-Text Retrieval in {O}pen{QA}",
+    author={Huang, Junjie and Zhong, Wanjun and Liu, Qian and Gong, Ming and Jiang, Daxin and Duan, Nan},
+    booktitle = "Findings of the Association for Computational Linguistics: EMNLP 2022",
+    month = dec,
+    year = "2022",
+    address = "Abu Dhabi, United Arab Emirates",
+    publisher = "Association for Computational Linguistics",
+    url = "https://aclanthology.org/2022.findings-emnlp.303",
+    pages = "4117--4129",
 }
 ```
 
